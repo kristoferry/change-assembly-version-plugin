@@ -9,16 +9,20 @@ import hudson.Launcher;
 import hudson.model.AbstractBuild;
 import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
+import hudson.model.Result;
+import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
+import java.io.IOException;
+import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.lang.StringUtils;
-
 import org.kohsuke.stapler.DataBoundConstructor;
 
 /**
  * @author <a href="mailto:leonardo.kobus@hbsis.com.br">Leonardo Kobus</a>
  */
-public class ChangeAssemblyVersion extends Builder {
+public class ChangeAssemblyVersion extends Builder implements SimpleBuildStep {
 
     private final String versionPattern;
     private final String assemblyFile;
@@ -55,9 +59,12 @@ public class ChangeAssemblyVersion extends Builder {
         this.assemblyProduct = assemblyProduct;
         this.assemblyCopyright = assemblyCopyright;
         this.assemblyTrademark = assemblyTrademark;
-        this.assemblyCulture = assemblyCulture;
+        this.assemblyCulture = assemblyCulture;       
     }
-
+    
+    @Extension
+    public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
+    
     public String getVersionPattern() {
         return this.versionPattern;
     }
@@ -175,18 +182,170 @@ public class ChangeAssemblyVersion extends Builder {
         return true;
     }
 
-    @Extension
-    public static class Descriptor extends BuildStepDescriptor<Builder> {
+    @Override
+    public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener) {
+        try {
+            
+            writeHeader(DESCRIPTOR.getDisplayName(), listener);
+                       
+            EnvVars envVars = run.getEnvironment(listener);
 
-        @Override
-        public boolean isApplicable(Class<? extends AbstractProject> jobType) {
-            return true;
+            String assemblyGlob = this.assemblyFile == null || this.assemblyFile.equals("") ? "**/AssemblyInfo.*" : this.assemblyFile;
+            listener.getLogger().println(String.format("Changing File(s): %s", assemblyGlob));
+            
+            for (FilePath file : workspace.list(assemblyGlob))
+            {
+                UpdateAssemblyVersion(envVars, listener, file);                
+                UpdateAssemblyTitle(envVars, listener, file);
+                UpdateAssemblyDescription(envVars, listener, file);
+                UpdateAssemblyCompany(envVars, listener, file);
+                UpdateAssemblyProduct(envVars, listener, file);
+                UpdateAssemblyCopyright(envVars, listener, file);
+                UpdateAssemblyTrademark(envVars, listener, file);
+                UpdateAssemblyCulture(envVars, listener, file);
+            }
+            
+            writeFooter(listener);
+            
+        } catch (Exception ex) {
+            StringWriter sw = new StringWriter();
+            ex.printStackTrace(new PrintWriter(sw));
+            listener.getLogger().println(sw.toString());
+            run.setResult(Result.FAILURE);
+        }
+        run.setResult(Result.SUCCESS);        
+    }  
+
+    private void UpdateAssemblyCulture(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String culture = envVars.expand(this.assemblyCulture);
+        if (culture != null && !culture.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Culture : %s",  culture));
+        }
+        new ChangeTools(f, "AssemblyCulture[(]\".*\"[)]", "AssemblyCulture(\"%s\")").Replace(culture, listener);
+    }
+
+    private void UpdateAssemblyTrademark(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String trademark = envVars.expand(this.assemblyTrademark);
+        if (trademark != null && !trademark.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Trademark : %s",  trademark));
+        }
+        new ChangeTools(f, "AssemblyTrademark[(]\".*\"[)]", "AssemblyTrademark(\"%s\")").Replace(trademark, listener);
+    }
+
+    private void UpdateAssemblyCopyright(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String copyright = envVars.expand(this.assemblyCopyright);
+        if (copyright != null && !copyright.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Copyright : %s",  copyright));
+        }
+        
+        new ChangeTools(f, "AssemblyCopyright[(]\".*\"[)]", "AssemblyCopyright(\"%s\")").Replace(copyright, listener);
+    }
+
+    private void UpdateAssemblyProduct(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String product = envVars.expand(this.assemblyProduct);
+        if (product != null && !product.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Product : %s",  product));
+        }
+        new ChangeTools(f, "AssemblyProduct[(]\".*\"[)]", "AssemblyProduct(\"%s\")").Replace(product, listener);
+    }
+
+    private void UpdateAssemblyCompany(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String company = envVars.expand(this.assemblyCompany);
+        
+        if (company != null && !company.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Company : %s",  company));
+        }
+        new ChangeTools(f, "AssemblyCompany[(]\".*\"[)]", "AssemblyCompany(\"%s\")").Replace(company, listener);
+    }
+
+    private void UpdateAssemblyDescription(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String description = envVars.expand(this.assemblyDescription);
+        if (description != null && !description.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Description : %s",  description));
+        }
+        new ChangeTools(f, "AssemblyDescription[(]\".*\"[)]", "AssemblyDescription(\"%s\")").Replace(description, listener);
+    }
+
+    private void UpdateAssemblyTitle(EnvVars envVars, TaskListener listener, FilePath f) throws IOException, InterruptedException {
+        String title = envVars.expand(this.assemblyTitle);
+        if (title != null && !title.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Title : %s",  title));
+        }
+        new ChangeTools(f, "AssemblyTitle[(]\".*\"[)]", "AssemblyTitle(\"%s\")").Replace(title, listener);
+    }
+
+    private void UpdateAssemblyVersion(EnvVars envVars, TaskListener listener, FilePath f) throws IllegalArgumentException, Exception {
+
+        if (versionPattern == null || StringUtils.isEmpty(versionPattern))
+        {
+            throw new IllegalArgumentException("Please provide a valid version pattern.");
+        }
+        String version = new AssemblyVersion(this.versionPattern, envVars).getVersion();
+        if (version != null && !version.isEmpty())
+        {
+            listener.getLogger().println(String.format("Assembly Version : %s",  version));
+        }
+        new ChangeTools(f, this.regexPattern, this.replacementPattern).Replace(version, listener);
+    }
+    
+    private void writeHeader(String header, TaskListener listener){
+        listener.getLogger().println();
+        listener.getLogger().println("################################");
+        writeRow(header, listener);
+        listener.getLogger().println("################################");
+        listener.getLogger().println();
+    }
+    
+    private void writeRow(String content, TaskListener listener){
+        int availableCharacterSpace = 28;
+        String formattedContent;
+
+        if (content.length() > availableCharacterSpace){
+            formattedContent = content.substring(0, 25) + "...";
+        } else {
+            formattedContent = content;
+        }
+
+        String padding = new String(new char[(availableCharacterSpace - formattedContent.length())/2]).replace("\0", " ");
+
+        listener.getLogger().println(String.format("# %1s%2s%3s #", padding, formattedContent, padding));
+    }
+
+    private void writeFooter(TaskListener listener) {
+        listener.getLogger().println();
+    }
+
+    @Override
+    public BuildStepDescriptor<Builder> getDescriptor() {
+        return DESCRIPTOR;
+    }
+
+    public static class DescriptorImpl extends BuildStepDescriptor<Builder> {
+
+        protected DescriptorImpl() {
+            super(ChangeAssemblyVersion.class);
         }
 
         @Override
         public String getDisplayName() {
-            return "Change Assembly Version";
+            return "Change Assembly Info";
         }
-    }
 
+        @Override
+        public String getHelpFile() {
+            return "help.html";
+        }
+
+        @Override
+        public boolean isApplicable(@SuppressWarnings("rawtypes") Class<? extends AbstractProject> jobType) {
+            return true;
+        }        
+    }
 }

@@ -2,7 +2,7 @@ package org.jenkinsci.plugins.changeassemblyversion;
 
 import hudson.FilePath;
 import hudson.model.BuildListener;
-
+import hudson.model.TaskListener;
 import java.io.IOException;
 
 public class ChangeTools {
@@ -38,6 +38,18 @@ public class ChangeTools {
         else
         {
             listener.getLogger().println(String.format("Skipping replacement because value is empty."));
+        }
+    }
+    void Replace(String replacement, TaskListener listener) throws IOException, InterruptedException {
+        
+        if (replacement != null && !replacement.isEmpty())
+        {                   
+            String content = file.readToString();
+            
+            listener.getLogger().println(String.format("Updating file : %s, Replacement : %s", file.getRemote(), replacement));
+            content = content.replaceAll(regexPattern, String.format(replacementPattern, replacement));
+            
+            file.write(content, null);
         }
     }
 }

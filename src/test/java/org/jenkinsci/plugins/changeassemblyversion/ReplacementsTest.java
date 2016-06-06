@@ -31,8 +31,6 @@ import hudson.model.FreeStyleBuild;
 import hudson.model.FreeStyleProject;
 import hudson.slaves.EnvironmentVariablesNodeProperty;
 import java.io.IOException;
-import org.apache.commons.io.FileUtils;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
@@ -55,23 +53,10 @@ public class ReplacementsTest {
         EnvVars envVars = prop.getEnvVars();
         envVars.put("PREFIX", "1.1.0");
         j.jenkins.getGlobalNodeProperties().add(prop);
+        
         FreeStyleProject project = j.createFreeStyleProject();
-        project.getBuildersList().add(new TestBuilder() {
-            public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
-                    BuildListener listener) throws InterruptedException, IOException {
-                build.getWorkspace().child("AssemblyVersion.cs").write("using System.Reflection;\n" +
-"\n" +
-"[assembly: AssemblyTitle(\"\")]\n" +
-"[assembly: AssemblyDescription(\"\")]\n" +
-"[assembly: AssemblyCompany(\"\")]\n" +
-"[assembly: AssemblyProduct(\"\")]\n" +
-"[assembly: AssemblyCopyright(\"\")]\n" +
-"[assembly: AssemblyTrademark(\"\")]\n" +
-"[assembly: AssemblyCulture(\"\")]\n" +
-"[assembly: AssemblyVersion(\"13.1.1.976\")]", "UTF-8");
-                return true;
-            }
-        });
+        project.getBuildersList().add(GetNewTestBuilder());
+        
         ChangeAssemblyVersion builder = new ChangeAssemblyVersion("$PREFIX.${BUILD_NUMBER}", "AssemblyVersion.cs", "", "", "MyTitle", "MyDescription", "MyCompany", "MyProduct", "MyCopyright", "MyTrademark", "MyCulture");
         project.getBuildersList().add(builder);
         FreeStyleBuild build = project.scheduleBuild2(0).get();
@@ -91,7 +76,7 @@ public class ReplacementsTest {
         
         assertTrue(builder.getVersionPattern().equals("$PREFIX.${BUILD_NUMBER}"));
     }
-    
+   
     @Test
     public void testResolveEnvironmentVariables_recursively_excludingSvn() throws InterruptedException, IOException, Exception {
 
@@ -123,5 +108,27 @@ public class ReplacementsTest {
         content = build.getWorkspace().child(f2).readToString();
         assertTrue(content.contains("AssemblyVersion(\"13.1.1.976"));
         assertTrue(builder.getVersionPattern().equals("$PREFIX.${BUILD_NUMBER}"));
+    }
+
+    private TestBuilder GetNewTestBuilder() {
+        return new TestBuilder() {
+            public boolean perform(AbstractBuild<?, ?> build, Launcher launcher,
+                    BuildListener listener) throws InterruptedException, IOException {
+                
+                build.getWorkspace().child("AssemblyVersion.cs").write("using System.Reflection;\n" +
+                        "\n" +
+                        "[assembly: AssemblyTitle(\"\")]\n" +
+                        "[assembly: AssemblyDescription(\"\")]\n" +
+                        "[assembly: AssemblyCompany(\"\")]\n" +
+                        "[assembly: AssemblyProduct(\"\")]\n" +
+                        "[assembly: AssemblyCopyright(\"\")]\n" +
+                        "[assembly: AssemblyTrademark(\"\")]\n" +
+                        "[assembly: AssemblyCulture(\"\")]\n" +
+                        "[assembly: AssemblyVersion(\"13.1.1.976\")]", "UTF-8");
+                
+                return true;
+                
+            }
+        };
     }
 }
