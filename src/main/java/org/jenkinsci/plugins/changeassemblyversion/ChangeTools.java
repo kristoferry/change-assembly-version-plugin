@@ -16,7 +16,7 @@ public class ChangeTools {
         if (regexPattern != null && !regexPattern.equals("")) {
             this.regexPattern = regexPattern;
         } else {
-            this.regexPattern = "Version[(]\"[\\d\\.]+\"[)]";
+            this.regexPattern = "Version\\(\\\"([\\d*]\\.?){1,}\\\"\\)";
         }
 
         if (replacementPattern != null && !replacementPattern.equals("")) {
@@ -40,10 +40,10 @@ public class ChangeTools {
             listener.getLogger().println(String.format("Skipping replacement because value is empty."));
         }
     }
-    void Replace(String replacement, TaskListener listener) throws IOException, InterruptedException {
+    public void Replace(String replacement, TaskListener listener) throws IOException, InterruptedException {
         
         if (replacement != null && !replacement.isEmpty())
-        {                   
+        {
             String content = file.readToString();
             
             listener.getLogger().println(String.format("Updating file : %s, Replacement : %s", file.getRemote(), replacement));
